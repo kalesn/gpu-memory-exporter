@@ -65,7 +65,7 @@ func GetContainerHostname(pid int) (string, error) {
 			return info.Hostname, nil
 		}
 	}
-	return "", errors.New("pid is not the main process id")
+	return "", errors.New(fmt.Sprintf("pid  %d is not the main process id", pid))
 }
 
 func GetContainerInfo() error {
