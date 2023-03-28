@@ -13,5 +13,4 @@ require (
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/common v0.37.0
-
 )

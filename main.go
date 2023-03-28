@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/docker/docker/api/types"
 	"net/http"
 	"os/exec"
@@ -19,7 +18,6 @@ import (
 
 const (
 	//gpuMemRegexPattern = `(\d+)MiB \/ (\d+)MiB`
-	//pidRegexPattern    = `(\d+)MiB \|$`
 	pidRegexPattern = `(\d+)MiB \|$`
 )
 
@@ -106,23 +104,23 @@ func main() {
 			cmd := exec.Command("nvidia-smi")
 			out, err := cmd.Output()
 			if err != nil {
-				fmt.Println(err)
+				panic(err)
 			}
 
 			processes := strings.Split(string(out), "\n")
 
 			for _, process := range processes[1:] {
-				fmt.Println(process)
+				//fmt.Println(process)
 				match := regexp.MustCompile(pidRegexPattern).FindStringSubmatch(process)
-				fmt.Println(match)
+				//fmt.Println(match)
 				if match != nil {
 					processReal := strings.Fields(process)
-					fmt.Println(processReal)
+					//fmt.Println(processReal)
 					pid, _ := strconv.Atoi(processReal[4])
 
 					hostname, err := GetContainerHostname(pid)
 					if err != nil {
-						fmt.Println(err)
+						panic(err)
 					}
 					used, _ := strconv.Atoi(strings.TrimRight(processReal[7], "MiB"))
 					gpuUsage.WithLabelValues(processReal[4], hostname).Set(float64(used))
