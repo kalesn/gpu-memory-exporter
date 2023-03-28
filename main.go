@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/docker/docker/api/types"
 	"net/http"
 	"os/exec"
@@ -92,7 +93,6 @@ func GetContainerInfo() error {
 			Hostname: containerJson.Config.Hostname,
 		}
 		containerInfos = append(containerInfos, containerInfo)
-		//fmt.Printf("Container ID: %s, Pid: %d\n", container.ID, container.Pid)
 	}
 	return nil
 }
@@ -110,17 +110,14 @@ func main() {
 			processes := strings.Split(string(out), "\n")
 
 			for _, process := range processes[1:] {
-				//fmt.Println(process)
 				match := regexp.MustCompile(pidRegexPattern).FindStringSubmatch(process)
-				//fmt.Println(match)
 				if match != nil {
 					processReal := strings.Fields(process)
-					//fmt.Println(processReal)
 					pid, _ := strconv.Atoi(processReal[4])
 
 					hostname, err := GetContainerHostname(pid)
 					if err != nil {
-						panic(err)
+						fmt.Println(err)
 					}
 					used, _ := strconv.Atoi(strings.TrimRight(processReal[7], "MiB"))
 					gpuUsage.WithLabelValues(processReal[4], hostname).Set(float64(used))
