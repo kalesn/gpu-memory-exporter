@@ -8,6 +8,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/client"
@@ -21,7 +22,7 @@ var (
 			Name: "gpu_memory_usage",
 			Help: "GPU memory usage per process",
 		},
-		[]string{"pid", "docker_hostname"},
+		[]string{"pid", "service", "docker_hostname"},
 	)
 )
 
@@ -65,6 +66,8 @@ func GetAllRunningProcesses() error {
 		fmt.Println("Failed to initialize NVML:", err)
 		return err
 	}
+	// clear processesInfos
+	processesInfos = processesInfos[0:0]
 
 	// Get the number of GPUs in the system
 	count, err := nvml.GetDeviceCount()
@@ -128,6 +131,7 @@ func GetContainerInfo() error {
 	if err != nil {
 		panic(err)
 	}
+
 	// clear slice
 	PidSlice = PidSlice[0:0]
 	containerInfos = containerInfos[0:0]
@@ -159,13 +163,21 @@ func main() {
 				panic(err)
 			}
 			for _, process := range processesInfos {
+				// 使用显卡的Pid
 				pid := process.Pid
+
+				// 根据Pid获取docker主机名
 				hostname, err := GetContainerHostname(pid)
 				if err != nil {
 					fmt.Println(err)
 				}
+				// 内存使用大小
 				used := process.Used
-				gpuUsage.WithLabelValues(strconv.Itoa(pid), hostname).Set(float64(used))
+				// Deploy 名称
+				HostnameSplit := strings.Split(hostname, "-")
+				service := strings.Join(HostnameSplit[:len(HostnameSplit)-3], "")
+
+				gpuUsage.WithLabelValues(strconv.Itoa(pid), service, hostname).Set(float64(used))
 			}
 			time.Sleep(time.Second * 5)
 		}
