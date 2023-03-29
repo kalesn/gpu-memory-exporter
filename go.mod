@@ -1,4 +1,4 @@
-module github.com/kalesn/gpu-memory-exporter
+module gitlab.langjtech.com/devops/gpu-memory-exporter
 
 go 1.16
 
