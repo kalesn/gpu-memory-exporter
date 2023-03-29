@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: gpu-memory-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/component: gpu-memory-exporter
+    app.kubernetes.io/instance: gpu-memory-exporter
+    app.kubernetes.io/name: gpu-memory-exporter
+    k8s-app: gpu-memory-exporter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: gpu-memory-exporter
+      app.kubernetes.io/instance: gpu-memory-exporter
+      app.kubernetes.io/name: gpu-memory-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: gpu-memory-exporter
+        app.kubernetes.io/instance: gpu-memory-exporter
+        app.kubernetes.io/name: gpu-memory-exporter
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: qgpu-device-enable
+                    operator: In
+                    values:
+                      - enable
+      containers:
+        - env:
+            - name: MY_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+          image: dockerimg.lenztechretail.com/infra/gpu-memory-exporter:v1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 45
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: gpu-memory-exporter
+          ports:
+            - containerPort: 8080
+              name: metrics
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            capabilities:
+              add:
+                - SYS_ADMIN
+            runAsNonRoot: false
+            runAsUser: 0
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /var/lib/kubelet/pod-resources
+              name: pod-gpu-resources
+              readOnly: true
+            - mountPath: /var/run/docker.sock
+              name: sock
+              readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      imagePullSecrets:
+        - name: lenz-dockerimg
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - hostPath:
+            path: /var/lib/kubelet/pod-resources
+            type: ""
+          name: pod-gpu-resources
+        - hostPath:
+            path: /var/run/docker.sock
+            type: ""
+          name: sock
