@@ -119,7 +119,7 @@ func GetContainerHostname(pid int) (string, error) {
 
 func GetContainerInfo() error {
 	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.WithVersion("1.41"))
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		panic(err)
 	}
