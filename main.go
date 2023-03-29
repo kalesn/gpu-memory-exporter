@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"net/http"
-	"os/exec"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/docker/docker/client"
@@ -17,10 +14,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const (
-	//gpuMemRegexPattern = `(\d+)MiB \/ (\d+)MiB`
-	pidRegexPattern = `(\d+)MiB \|$`
-)
+//const (
+//gpuMemRegexPattern = `(\d+)MiB \/ (\d+)MiB`
+//pidRegexPattern = `(\d+)MiB \|$`
+//)
 
 var (
 	gpuUsage = prometheus.NewGaugeVec(
@@ -79,7 +76,11 @@ func GetContainerInfo() error {
 	if err != nil {
 		panic(err)
 	}
+	// clear slice
+	PidSlice = PidSlice[0:0]
+	containerInfos = containerInfos[0:0]
 
+	// append containerInfo
 	for _, container := range containerList {
 		containerJson, err := cli.ContainerInspect(ctx, container.ID)
 		if err != nil {
@@ -101,27 +102,40 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {
 		for {
-			cmd := exec.Command("nvidia-smi")
-			out, err := cmd.Output()
+			//cmd := exec.Command("nvidia-smi")
+			//out, err := cmd.Output()
+			//if err != nil {
+			//	panic(err)
+			//}
+			//
+			//processes := strings.Split(string(out), "\n")
+			//
+			//for _, process := range processes[1:] {
+			//	match := regexp.MustCompile(pidRegexPattern).FindStringSubmatch(process)
+			//	if match != nil {
+			//		processReal := strings.Fields(process)
+			//		pid, _ := strconv.Atoi(processReal[4])
+			//
+			//		hostname, err := GetContainerHostname(pid)
+			//		if err != nil {
+			//			fmt.Println(err)
+			//		}
+			//		used, _ := strconv.Atoi(strings.TrimRight(processReal[7], "MiB"))
+			//		gpuUsage.WithLabelValues(pid, hostname).Set(float64(used))
+			//	}
+			//}
+			err := GetAllRunningProcesses()
 			if err != nil {
 				panic(err)
 			}
-
-			processes := strings.Split(string(out), "\n")
-
-			for _, process := range processes[1:] {
-				match := regexp.MustCompile(pidRegexPattern).FindStringSubmatch(process)
-				if match != nil {
-					processReal := strings.Fields(process)
-					pid, _ := strconv.Atoi(processReal[4])
-
-					hostname, err := GetContainerHostname(pid)
-					if err != nil {
-						fmt.Println(err)
-					}
-					used, _ := strconv.Atoi(strings.TrimRight(processReal[7], "MiB"))
-					gpuUsage.WithLabelValues(processReal[4], hostname).Set(float64(used))
+			for _, process := range processesInfos {
+				pid := process.Pid
+				hostname, err := GetContainerHostname(pid)
+				if err != nil {
+					fmt.Println(err)
 				}
+				used := process.Used
+				gpuUsage.WithLabelValues(strconv.Itoa(pid), hostname).Set(float64(used))
 			}
 			time.Sleep(time.Second * 1)
 		}
