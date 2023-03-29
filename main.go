@@ -175,7 +175,7 @@ func main() {
 				used := process.Used
 				// Deploy 名称
 				HostnameSplit := strings.Split(hostname, "-")
-				service := strings.Join(HostnameSplit[:len(HostnameSplit)-3], "")
+				service := strings.Join(HostnameSplit[:len(HostnameSplit)-3], "-")
 
 				gpuUsage.WithLabelValues(strconv.Itoa(pid), service, hostname).Set(float64(used))
 			}
