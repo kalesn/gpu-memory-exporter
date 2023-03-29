@@ -1,4 +1,4 @@
-FROM dockerimg.lenztechretail.com/infra/golang:1.18-gpu
+FROM dockerimg.lenztechretail.com/infra/golang:1.18-gpu as builder
 
 WORKDIR /app
 
@@ -18,4 +18,4 @@ WORKDIR /app
 COPY --from=builder /app/gpu-memory-exporter .
 
 EXPOSE 8080
-CMD ["./gpu-memory-exporter"]
+ENTRYPOINT ["./gpu-memory-exporter"]

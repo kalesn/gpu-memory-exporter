@@ -15,11 +15,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-//const (
-//gpuMemRegexPattern = `(\d+)MiB \/ (\d+)MiB`
-//pidRegexPattern = `(\d+)MiB \|$`
-//)
-
 var (
 	gpuUsage = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -159,28 +154,6 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {
 		for {
-			//cmd := exec.Command("nvidia-smi")
-			//out, err := cmd.Output()
-			//if err != nil {
-			//	panic(err)
-			//}
-			//
-			//processes := strings.Split(string(out), "\n")
-			//
-			//for _, process := range processes[1:] {
-			//	match := regexp.MustCompile(pidRegexPattern).FindStringSubmatch(process)
-			//	if match != nil {
-			//		processReal := strings.Fields(process)
-			//		pid, _ := strconv.Atoi(processReal[4])
-			//
-			//		hostname, err := GetContainerHostname(pid)
-			//		if err != nil {
-			//			fmt.Println(err)
-			//		}
-			//		used, _ := strconv.Atoi(strings.TrimRight(processReal[7], "MiB"))
-			//		gpuUsage.WithLabelValues(pid, hostname).Set(float64(used))
-			//	}
-			//}
 			err := GetAllRunningProcesses()
 			if err != nil {
 				panic(err)
@@ -194,7 +167,7 @@ func main() {
 				used := process.Used
 				gpuUsage.WithLabelValues(strconv.Itoa(pid), hostname).Set(float64(used))
 			}
-			time.Sleep(time.Second * 1)
+			time.Sleep(time.Second * 5)
 		}
 	}()
 	err := http.ListenAndServe(":8080", nil)
