@@ -95,3 +95,17 @@ spec:
             path: /var/run/docker.sock
             type: ""
           name: sock
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpu-memory-exporter
+spec:
+  selector:
+    app: gpu-memory-exporter
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
