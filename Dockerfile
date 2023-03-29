@@ -1,4 +1,4 @@
-FROM golang:1.16 AS builder
+FROM dockerimg.lenztechretail.com/infra/golang:1.18-gpu
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ COPY . .
 
 RUN go build -o gpu-memory-exporter main.go
 
-FROM nvidia/cuda:10.0-base
+FROM dockerimg.lenztechretail.com/infra/dcgm-exporter:2.4.6-2.6.9-ubuntu20.04
 
 WORKDIR /app
 
