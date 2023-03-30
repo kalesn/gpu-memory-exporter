@@ -19,7 +19,7 @@
 
 - 运行Docker容器
 
-`docker run -p 8080:8080 --runtime=nvidia gpu-memory-exporter`
+`docker run -p 8080:8080 --pid=host --runtime=nvidia -v /var/run/docker.sock:/var/run/docker.sock gpu-memory-exporter`
 
 
 
@@ -32,13 +32,12 @@
 
 # 要求
 
-
 安装NVIDIA CUDA驱动程序和nvidia-docker2扩展
 
 
 # 参考文献
 
 - Promethues Client Golang：https://github.com/prometheus/client_golang
-
 - NVIDIA Docker：https://github.com/NVIDIA/nvidia-docker
+- Docker: https://github.com/docker/docker
 

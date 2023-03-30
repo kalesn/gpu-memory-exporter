@@ -6,56 +6,78 @@ import (
 	"fmt"
 	"github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml"
 	"github.com/docker/docker/api/types"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/docker/docker/client"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"log"
+	"net/http"
+	"strconv"
+	"strings"
 )
 
 var (
-	gpuUsage = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "gpu_memory_usage",
-			Help: "GPU memory usage per process",
-		},
+	gpuUsage = prometheus.NewDesc(
+		"gpu_memory_usage",
+		"GPU memory usage per process",
 		[]string{"pid", "service", "docker_hostname"},
-	)
+		nil)
 )
 
-var PidSlice []int
-var containerInfos []ContainerInfo
+func main() {
+	// 注册指标
+	mc := &MetricsCollector{Name: "GPU-MEMORY-EXPORTER"}
+	prometheus.MustRegister(mc)
 
-func init() {
-	prometheus.MustRegister(gpuUsage)
-}
-
-type ContainerInfo struct {
-	ID       string
-	Pid      int
-	Hostname string
-}
-
-func InSlice(item int) bool {
-	for _, eachItem := range PidSlice {
-		if item == eachItem {
-			return true
-		}
+	// 启动 HTTP 服务
+	http.Handle("/metrics", promhttp.Handler())
+	err := http.ListenAndServe(":8080", nil)
+	if err != nil {
+		return
 	}
-	return false
 }
 
-type ProcessesInfo struct {
+type MetricsCollector struct {
+	Name string
+}
+
+func (mc *MetricsCollector) Collect(ch chan<- prometheus.Metric) {
+	log.Printf("MetricsCollector.collect.called")
+	processes, err := GetAllRunningProcesses()
+	if err != nil {
+		panic(err)
+	}
+
+	err = GetContainerInfo()
+	if err != nil {
+		panic(err)
+	}
+	for _, process := range processes {
+		pid := strconv.Itoa(process.Pid)
+		hostname, err := GetContainerHostname(process.Pid)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		service := getServiceName(hostname)
+		ch <- prometheus.MustNewConstMetric(gpuUsage,
+			prometheus.GaugeValue, float64(process.Used), pid, service, hostname)
+	}
+}
+
+func (mc *MetricsCollector) Describe(ch chan<- *prometheus.Desc) {
+	log.Printf("MyCollector.Describe.called")
+	ch <- gpuUsage
+}
+
+type ProcessInfo struct {
 	Pid  int
 	Used int
 }
 
-var processesInfos []ProcessesInfo
+var processesInfos []*ProcessInfo
 
-func GetAllRunningProcesses() error {
+// GetAllRunningProcesses 获取当前正在使用GPU的进程ID(PID)
+func GetAllRunningProcesses() ([]*ProcessInfo, error) {
 	// Initialize NVML library
 	err := nvml.Init()
 	defer func() {
@@ -63,8 +85,8 @@ func GetAllRunningProcesses() error {
 	}()
 
 	if err != nil {
-		fmt.Println("Failed to initialize NVML:", err)
-		return err
+		log.Println("Failed to initialize NVML:", err)
+		return nil, err
 	}
 	// clear processesInfos
 	processesInfos = processesInfos[0:0]
@@ -72,54 +94,62 @@ func GetAllRunningProcesses() error {
 	// Get the number of GPUs in the system
 	count, err := nvml.GetDeviceCount()
 	if err != nil {
-		fmt.Println("Failed to get GPU count:", err)
-		return err
+		log.Println("Failed to get GPU count:", err)
+		return nil, err
 	}
 
 	for i := uint(0); i < count; i++ {
 		// Get GPU handle
 		gpu, err := nvml.NewDeviceLite(i)
 		if err != nil {
-			fmt.Printf("Failed to get handle for GPU %d: %v\n", i, err)
+			log.Printf("Failed to get handle for GPU %d: %v\n", i, err)
 			continue
 		}
 
 		// Get list of processes running on this GPU
 		processes, err := gpu.GetAllRunningProcesses()
 		if err != nil {
-			fmt.Printf("Failed to get processes for GPU %d: %v\n", i, err)
+			log.Printf("Failed to get processes for GPU %d: %v\n", i, err)
 			continue
 		}
 
-		fmt.Printf("GPU %d processes:\n", i)
+		log.Printf("GPU %d processes:\n", i)
 		for _, process := range processes {
-			ProcessesInfo := ProcessesInfo{
+			ProcessesInfo := &ProcessInfo{
 				Pid:  int(process.PID),
 				Used: int(process.MemoryUsed),
 			}
 			processesInfos = append(processesInfos, ProcessesInfo)
-			fmt.Printf("\tProcess name: %s, PID: %d, Used memory: %d MB\n",
+			log.Printf("\tProcess name: %s, PID: %d, Used memory: %d MB\n",
 				process.Name, process.PID, process.MemoryUsed)
 		}
 	}
-	return nil
+	return processesInfos, nil
 }
 
+// GetContainerHostname 根据PID获取container的主机名(POD Name)
 func GetContainerHostname(pid int) (string, error) {
 	if !InSlice(pid) {
-		err := GetContainerInfo()
-		if err != nil {
-			return "", err
-		}
+		return "", errors.New(fmt.Sprintf("pid  %d is not the main process id", pid))
 	}
 	for _, info := range containerInfos {
 		if info.Pid == pid {
 			return info.Hostname, nil
 		}
 	}
-	return "", errors.New(fmt.Sprintf("pid  %d is not the main process id", pid))
+	return "", errors.New(fmt.Sprintf("pid  %d is not in containerInfos", pid))
 }
 
+var PidSlice []int
+var containerInfos []*ContainerInfo
+
+type ContainerInfo struct {
+	ID       string
+	Pid      int
+	Hostname string
+}
+
+// GetContainerInfo 获取所有运行的Container信息，uuid,PID,Hostname并进行关联
 func GetContainerInfo() error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -144,7 +174,7 @@ func GetContainerInfo() error {
 
 		}
 		PidSlice = append(PidSlice, containerJson.State.Pid)
-		containerInfo := ContainerInfo{
+		containerInfo := &ContainerInfo{
 			ID:       container.ID,
 			Pid:      containerJson.State.Pid,
 			Hostname: containerJson.Config.Hostname,
@@ -154,36 +184,18 @@ func GetContainerInfo() error {
 	return nil
 }
 
-func main() {
-	http.Handle("/metrics", promhttp.Handler())
-	go func() {
-		for {
-			err := GetAllRunningProcesses()
-			if err != nil {
-				panic(err)
-			}
-			for _, process := range processesInfos {
-				// 使用显卡的Pid
-				pid := process.Pid
+// 根据Container名称计算Service名称，以-为分隔符，除去后两段
+func getServiceName(hostname string) string {
+	HostnameSplit := strings.Split(hostname, "-")
+	return strings.Join(HostnameSplit[:len(HostnameSplit)-3], "-")
+}
 
-				// 根据Pid获取docker主机名
-				hostname, err := GetContainerHostname(pid)
-				if err != nil {
-					fmt.Println(err)
-				}
-				// 内存使用大小
-				used := process.Used
-				// Deploy 名称
-				HostnameSplit := strings.Split(hostname, "-")
-				service := strings.Join(HostnameSplit[:len(HostnameSplit)-3], "-")
-
-				gpuUsage.WithLabelValues(strconv.Itoa(pid), service, hostname).Set(float64(used))
-			}
-			time.Sleep(time.Second * 5)
+// InSlice 判断Pid是否在切片中
+func InSlice(item int) bool {
+	for _, eachItem := range PidSlice {
+		if item == eachItem {
+			return true
 		}
-	}()
-	err := http.ListenAndServe(":8080", nil)
-	if err != nil {
-		return
 	}
+	return false
 }
