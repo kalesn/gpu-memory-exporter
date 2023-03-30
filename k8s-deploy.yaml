@@ -107,6 +107,7 @@ metadata:
 spec:
   selector:
     app: gpu-memory-exporter
+    app.kubernetes.io/instance: gpu-memory-exporter
   ports:
     - name: http
       port: 80
