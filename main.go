@@ -186,7 +186,7 @@ func GetContainerInfo() {
 // 根据Container名称计算Service名称，以-为分隔符，除去后两段
 func getServiceName(hostname string) string {
 	HostnameSplit := strings.Split(hostname, "-")
-	return strings.Join(HostnameSplit[:len(HostnameSplit)-3], "-")
+	return strings.Join(HostnameSplit[:len(HostnameSplit)-2], "-")
 }
 
 // InSlice 判断Pid是否在切片中
