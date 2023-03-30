@@ -20,7 +20,7 @@ var (
 	gpuUsage = prometheus.NewDesc(
 		"gpu_memory_usage",
 		"GPU memory usage per process",
-		[]string{"pid", "service", "docker_hostname"},
+		[]string{"pid", "service_name", "pod_name"},
 		nil)
 )
 
@@ -59,9 +59,9 @@ func (mc *MetricsCollector) Collect(ch chan<- prometheus.Metric) {
 			log.Println(err)
 			continue
 		}
-		service := getServiceName(hostname)
+		serviceName := getServiceName(hostname)
 		ch <- prometheus.MustNewConstMetric(gpuUsage,
-			prometheus.GaugeValue, float64(process.Used), pid, service, hostname)
+			prometheus.GaugeValue, float64(process.Used), pid, serviceName, hostname)
 	}
 }
 
