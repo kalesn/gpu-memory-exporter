@@ -20,7 +20,7 @@ var (
 	gpuUsage = prometheus.NewDesc(
 		"gpu_memory_usage",
 		"GPU memory usage per process",
-		[]string{"pid", "service_name", "pod_name"},
+		[]string{"pid", "service", "pod"},
 		nil)
 )
 
