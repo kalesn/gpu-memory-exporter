@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var (
@@ -46,13 +47,13 @@ func (mc *MetricsCollector) Collect(ch chan<- prometheus.Metric) {
 	if err != nil {
 		panic(err)
 	}
-
-	err = GetContainerInfo()
-	if err != nil {
-		panic(err)
-	}
+	var once sync.Once
 	for _, process := range processes {
+		if !InSlice(process.Pid) {
+			once.Do(GetContainerInfo)
+		}
 		pid := strconv.Itoa(process.Pid)
+
 		hostname, err := GetContainerHostname(process.Pid)
 		if err != nil {
 			log.Println(err)
@@ -150,7 +151,7 @@ type ContainerInfo struct {
 }
 
 // GetContainerInfo 获取所有运行的Container信息，uuid,PID,Hostname并进行关联
-func GetContainerInfo() error {
+func GetContainerInfo() {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -171,7 +172,6 @@ func GetContainerInfo() error {
 		containerJson, err := cli.ContainerInspect(ctx, container.ID)
 		if err != nil {
 			panic(err)
-
 		}
 		PidSlice = append(PidSlice, containerJson.State.Pid)
 		containerInfo := &ContainerInfo{
@@ -181,7 +181,6 @@ func GetContainerInfo() error {
 		}
 		containerInfos = append(containerInfos, containerInfo)
 	}
-	return nil
 }
 
 // 根据Container名称计算Service名称，以-为分隔符，除去后两段
