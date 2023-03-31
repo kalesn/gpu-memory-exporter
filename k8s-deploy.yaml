@@ -39,7 +39,7 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: spec.nodeName
-          image: dockerimg.lenztechretail.com/infra/gpu-memory-exporter:v1
+          image: gpu-memory-exporter:v1
           imagePullPolicy: IfNotPresent
           livenessProbe:
             failureThreshold: 3
