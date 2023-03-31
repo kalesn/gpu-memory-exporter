@@ -29,6 +29,13 @@
 
 - gpu_memory_usage: 每个进程的GPU内存使用率，包括进程的pid和Docker主机名。
 
+### 注意
+- 如果运行在k8s中，并且使用prometheus operator的service monitor 进行采集需要进行drop label操作，否则pod、service标签的值会被覆盖为gpu-memory-exporter
+`
+relabelings:
+    - action: labeldrop
+      regex: (pod|service)
+`
 
 # 要求
 
