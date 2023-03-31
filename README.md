@@ -31,11 +31,11 @@
 
 ### 注意
 - 如果运行在k8s中，并且使用prometheus operator的service monitor 进行采集需要进行drop label操作，否则pod、service标签的值会被覆盖为gpu-memory-exporter
-`
+"""
 relabelings:
     - action: labeldrop
       regex: (pod|service)
-`
+"""
 
 # 要求
 
