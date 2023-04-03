@@ -1,13 +1,12 @@
 FROM nvcr.io/nvidia/cuda:12.0.0-base-ubuntu20.04 as  builder
-LABEL io.k8s.display-name="NVIDIA DCGM Exporter"
-
-ARG DCGM_VERSION
+LABEL io.k8s.display-name="GPU MEMORY Exporter"
 
 #
 RUN sed -i -E "s/[a-zA-Z0-9]+.ubuntu.com/mirrors.aliyun.com/g" /etc/apt/sources.list
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    datacenter-gpu-manager=1:${DCGM_VERSION} libcap2-bin \
-    gcc make wget git curl && apt-get purge --autoremove -y openssl
+    datacenter-gpu-manager=1:2.4.6 libcap2-bin \
+    gcc g++  make wget git curl  ca-certificates apt-transport-https && update-ca-certificates
+
 
 # Required for DCP metrics
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,compat32
@@ -18,8 +17,9 @@ ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NO_SETCAP=""
 
 WORKDIR /app
+
 # install GoPkg
-RUN  wget https://studygolang.com/dl/golang/go1.18.8.linux-amd64.tar.gz && tar xfz go1.18.8.linux-amd64.tar.gz
+RUN  wget --no-check-certificate  https://studygolang.com/dl/golang/go1.18.8.linux-amd64.tar.gz && tar xfz go1.18.8.linux-amd64.tar.gz
 
 ENV  PATH ${PATH}:/app/go/bin
 
