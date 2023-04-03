@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -45,12 +46,17 @@ func (mc *MetricsCollector) Collect(ch chan<- prometheus.Metric) {
 	log.Printf("MetricsCollector.collect.called")
 	processes, err := GetAllRunningProcesses()
 	if err != nil {
+		log.Println(err)
 		panic(err)
 	}
 	var once sync.Once
 	for _, process := range processes {
-		if !InSlice(process.Pid) {
-			once.Do(GetContainerInfo)
+		if !IsInSlice(process.Pid) {
+			once.Do(func() {
+				if err := GetContainerInfo(); err != nil {
+					log.Println(err)
+				}
+			})
 		}
 		pid := strconv.Itoa(process.Pid)
 
@@ -130,7 +136,7 @@ func GetAllRunningProcesses() ([]*ProcessInfo, error) {
 
 // GetContainerHostname 根据PID获取container的主机名(POD Name)
 func GetContainerHostname(pid int) (string, error) {
-	if !InSlice(pid) {
+	if !IsInSlice(pid) {
 		return "", errors.New(fmt.Sprintf("pid  %d is not the main process id", pid))
 	}
 	for _, info := range containerInfos {
@@ -151,16 +157,21 @@ type ContainerInfo struct {
 }
 
 // GetContainerInfo 获取所有运行的Container信息，uuid,PID,Hostname并进行关联
-func GetContainerInfo() {
-	ctx := context.Background()
+func GetContainerInfo() error {
+	//ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		return err
 	}
 
 	containerList, err := cli.ContainerList(ctx, types.ContainerListOptions{All: true})
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		return err
 	}
 
 	// clear slice
@@ -174,13 +185,13 @@ func GetContainerInfo() {
 			panic(err)
 		}
 		PidSlice = append(PidSlice, containerJson.State.Pid)
-		containerInfo := &ContainerInfo{
+		containerInfos = append(containerInfos, &ContainerInfo{
 			ID:       container.ID,
 			Pid:      containerJson.State.Pid,
 			Hostname: containerJson.Config.Hostname,
-		}
-		containerInfos = append(containerInfos, containerInfo)
+		})
 	}
+	return nil
 }
 
 // 根据Container名称计算Service名称，以-为分隔符，除去后两段
@@ -189,8 +200,8 @@ func getServiceName(hostname string) string {
 	return strings.Join(HostnameSplit[:len(HostnameSplit)-2], "-")
 }
 
-// InSlice 判断Pid是否在切片中
-func InSlice(item int) bool {
+// IsInSlice 判断Pid是否在切片中
+func IsInSlice(item int) bool {
 	for _, eachItem := range PidSlice {
 		if item == eachItem {
 			return true
