@@ -12,7 +12,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
@@ -60,12 +59,12 @@ func (mc *MetricsCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 		pid := strconv.Itoa(process.Pid)
 
-		hostname, err := GetContainerHostname(process.Pid)
+		hostname, serviceName, err := GetContainerHostname(process.Pid)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		serviceName := getServiceName(hostname)
+		//serviceName := getServiceName(hostname)
 		ch <- prometheus.MustNewConstMetric(gpuUsage,
 			prometheus.GaugeValue, float64(process.Used), pid, serviceName, hostname)
 	}
@@ -135,25 +134,26 @@ func GetAllRunningProcesses() ([]*ProcessInfo, error) {
 }
 
 // GetContainerHostname 根据PID获取container的主机名(POD Name)
-func GetContainerHostname(pid int) (string, error) {
+func GetContainerHostname(pid int) (string, string, error) {
 	if !IsInSlice(pid) {
-		return "", errors.New(fmt.Sprintf("pid  %d is not the main process id", pid))
+		return "", "", errors.New(fmt.Sprintf("pid  %d is not the main process id", pid))
 	}
 	for _, info := range containerInfos {
 		if info.Pid == pid {
-			return info.Hostname, nil
+			return info.Hostname, info.ContainerName, nil
 		}
 	}
-	return "", errors.New(fmt.Sprintf("pid  %d is not in containerInfos", pid))
+	return "", "", errors.New(fmt.Sprintf("pid  %d is not in containerInfos", pid))
 }
 
 var PidSlice []int
 var containerInfos []*ContainerInfo
 
 type ContainerInfo struct {
-	ID       string
-	Pid      int
-	Hostname string
+	ID            string
+	Pid           int
+	Hostname      string
+	ContainerName string
 }
 
 // GetContainerInfo 获取所有运行的Container信息，uuid,PID,Hostname并进行关联
@@ -186,19 +186,20 @@ func GetContainerInfo() error {
 		}
 		PidSlice = append(PidSlice, containerJson.State.Pid)
 		containerInfos = append(containerInfos, &ContainerInfo{
-			ID:       container.ID,
-			Pid:      containerJson.State.Pid,
-			Hostname: containerJson.Config.Hostname,
+			ID:            container.ID,
+			Pid:           containerJson.State.Pid,
+			Hostname:      containerJson.Config.Hostname,
+			ContainerName: containerJson.Config.Labels["io.kubernetes.container.name"],
 		})
 	}
 	return nil
 }
 
 // 根据Container名称计算Service名称，以-为分隔符，除去后两段
-func getServiceName(hostname string) string {
-	HostnameSplit := strings.Split(hostname, "-")
-	return strings.Join(HostnameSplit[:len(HostnameSplit)-2], "-")
-}
+//func getServiceName(hostname string) string {
+//	HostnameSplit := strings.Split(hostname, "-")
+//	return strings.Join(HostnameSplit[:len(HostnameSplit)-2], "-")
+//}
 
 // IsInSlice 判断Pid是否在切片中
 func IsInSlice(item int) bool {
