@@ -28,10 +28,10 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: qgpu-device-enable
+                  - key: ack.node.gpu.schedule
                     operator: In
                     values:
-                      - enable
+                      - cgpu
       containers:
         - env:
             - name: MY_NODE_NAME
@@ -78,13 +78,13 @@ spec:
             - mountPath: /var/lib/kubelet/pod-resources
               name: pod-gpu-resources
               readOnly: true
-            - mountPath: /var/run/docker.sock
+            - mountPath: /var/run/containerd/containerd.sock
               name: sock
               readOnly: true
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler
-      securityContext: {}
+      securityContext: { }
       imagePullSecrets:
         - name: lenz-dockerimg
       terminationGracePeriodSeconds: 30
@@ -94,7 +94,7 @@ spec:
             type: ""
           name: pod-gpu-resources
         - hostPath:
-            path: /var/run/docker.sock
+            path: /var/run/containerd/containerd.sock
             type: ""
           name: sock
 

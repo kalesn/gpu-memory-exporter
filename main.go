@@ -5,15 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
+	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/namespaces"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
 	"strconv"
 	"sync"
-	"time"
 )
 
 var (
@@ -23,6 +22,8 @@ var (
 		[]string{"pid", "service", "pod"},
 		nil)
 )
+
+var K8S_NAMESPACE = "k8s.io"
 
 func main() {
 	// 注册指标
@@ -154,46 +155,47 @@ type ContainerInfo struct {
 	Pid           int
 	Hostname      string
 	ContainerName string
+	Namespace     string
 }
 
-// GetContainerInfo 获取所有运行的Container信息，uuid,PID,Hostname并进行关联
-func GetContainerInfo() error {
-	//ctx := context.Background()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	containerList, err := cli.ContainerList(ctx, types.ContainerListOptions{All: true})
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	// clear slice
-	PidSlice = PidSlice[0:0]
-	containerInfos = containerInfos[0:0]
-
-	// append containerInfo
-	for _, container := range containerList {
-		containerJson, err := cli.ContainerInspect(ctx, container.ID)
-		if err != nil {
-			panic(err)
-		}
-		PidSlice = append(PidSlice, containerJson.State.Pid)
-		containerInfos = append(containerInfos, &ContainerInfo{
-			ID:            container.ID,
-			Pid:           containerJson.State.Pid,
-			Hostname:      containerJson.Config.Hostname,
-			ContainerName: containerJson.Config.Labels["io.kubernetes.container.name"],
-		})
-	}
-	return nil
-}
+//// GetContainerInfo 获取所有运行的Container信息，uuid,PID,Hostname并进行关联
+//func GetContainerInfo() error {
+//	//ctx := context.Background()
+//	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+//	defer cancel()
+//
+//	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+//	if err != nil {
+//		log.Println(err)
+//		return err
+//	}
+//
+//	containerList, err := cli.ContainerList(ctx, types.ContainerListOptions{All: true})
+//	if err != nil {
+//		log.Println(err)
+//		return err
+//	}
+//
+//	// clear slice
+//	PidSlice = PidSlice[0:0]
+//	containerInfos = containerInfos[0:0]
+//
+//	// append containerInfo
+//	for _, container := range containerList {
+//		containerJson, err := cli.ContainerInspect(ctx, container.ID)
+//		if err != nil {
+//			panic(err)
+//		}
+//		PidSlice = append(PidSlice, containerJson.State.Pid)
+//		containerInfos = append(containerInfos, &ContainerInfo{
+//			ID:            container.ID,
+//			Pid:           containerJson.State.Pid,
+//			Hostname:      containerJson.Config.Hostname,
+//			ContainerName: containerJson.Config.Labels["io.kubernetes.container.name"],
+//		})
+//	}
+//	return nil
+//}
 
 // 根据Container名称计算Service名称，以-为分隔符，除去后两段
 //func getServiceName(hostname string) string {
@@ -209,4 +211,55 @@ func IsInSlice(item int) bool {
 		}
 	}
 	return false
+}
+
+// GetContainerInfo 获取所有运行的Container信息，uuid,PID,Hostname并进行关联
+func GetContainerInfo() error {
+
+	client, err := containerd.New("/run/containerd/containerd.sock")
+	if err != nil {
+		log.Printf("Failed to connect to containerd: %v", err)
+		return err
+	}
+	defer client.Close()
+
+	// 使用命名空间 "default"
+	ctx := namespaces.WithNamespace(context.Background(), K8S_NAMESPACE)
+
+	// 获取容器列表
+	containerList, err := client.Containers(ctx)
+	if err != nil {
+		log.Printf("Failed to list containers: %v", err)
+		return err
+
+	}
+
+	// clear slice
+	PidSlice = PidSlice[0:0]
+	containerInfos = containerInfos[0:0]
+
+	// append containerInfo
+	for _, container := range containerList {
+		info, err := container.Info(ctx)
+		if err != nil {
+			log.Printf("Failed to get info for container %v", err)
+			continue
+		}
+		// Get container task (running process)
+		task, err := container.Task(ctx, nil)
+		if err != nil {
+			log.Printf("Failed to get task for container %s: %v", info.ID, err)
+			continue
+		}
+
+		PidSlice = append(PidSlice, int(task.Pid()))
+		containerInfos = append(containerInfos, &ContainerInfo{
+			ID:            container.ID(),
+			Pid:           int(task.Pid()),
+			Hostname:      info.Labels["io.kubernetes.pod.name"],       // pod name
+			ContainerName: info.Labels["io.kubernetes.container.name"], // service name
+			Namespace:     info.Labels["io.kubernetes.container.namespace"],
+		})
+	}
+	return nil
 }
