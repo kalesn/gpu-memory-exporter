@@ -27,11 +27,11 @@ COPY go.mod .
 COPY go.sum .
 
 RUN go env -w GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
-RUN go mod download
+RUN go mod tidy
 
 COPY . .
 
-RUN go build -o gpu-memory-exporter main.go
+RUN go build  -ldflags="-extldflags=-Wl,-z,lazy" -o gpu-memory-exporter main.go
 
 FROM nvcr.io/nvidia/cuda:12.0.0-base-ubuntu20.04
 

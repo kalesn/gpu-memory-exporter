@@ -158,51 +158,6 @@ type ContainerInfo struct {
 	Namespace     string
 }
 
-//// GetContainerInfo 获取所有运行的Container信息，uuid,PID,Hostname并进行关联
-//func GetContainerInfo() error {
-//	//ctx := context.Background()
-//	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-//	defer cancel()
-//
-//	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-//	if err != nil {
-//		log.Println(err)
-//		return err
-//	}
-//
-//	containerList, err := cli.ContainerList(ctx, types.ContainerListOptions{All: true})
-//	if err != nil {
-//		log.Println(err)
-//		return err
-//	}
-//
-//	// clear slice
-//	PidSlice = PidSlice[0:0]
-//	containerInfos = containerInfos[0:0]
-//
-//	// append containerInfo
-//	for _, container := range containerList {
-//		containerJson, err := cli.ContainerInspect(ctx, container.ID)
-//		if err != nil {
-//			panic(err)
-//		}
-//		PidSlice = append(PidSlice, containerJson.State.Pid)
-//		containerInfos = append(containerInfos, &ContainerInfo{
-//			ID:            container.ID,
-//			Pid:           containerJson.State.Pid,
-//			Hostname:      containerJson.Config.Hostname,
-//			ContainerName: containerJson.Config.Labels["io.kubernetes.container.name"],
-//		})
-//	}
-//	return nil
-//}
-
-// 根据Container名称计算Service名称，以-为分隔符，除去后两段
-//func getServiceName(hostname string) string {
-//	HostnameSplit := strings.Split(hostname, "-")
-//	return strings.Join(HostnameSplit[:len(HostnameSplit)-2], "-")
-//}
-
 // IsInSlice 判断Pid是否在切片中
 func IsInSlice(item int) bool {
 	for _, eachItem := range PidSlice {
