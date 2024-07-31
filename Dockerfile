@@ -19,7 +19,7 @@ ENV NO_SETCAP=""
 WORKDIR /app
 
 # install GoPkg
-RUN  wget --no-check-certificate  https://studygolang.com/dl/golang/go1.18.8.linux-amd64.tar.gz && tar xfz go1.18.8.linux-amd64.tar.gz
+RUN  wget --no-check-certificate  https://studygolang.com/dl/golang/go1.20.12.linux-amd64.tar.gz && tar xfz go1.20.12.linux-amd64.tar.gz
 
 ENV  PATH ${PATH}:/app/go/bin
 
@@ -27,7 +27,7 @@ COPY go.mod .
 COPY go.sum .
 
 RUN go env -w GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
-RUN go mod tidy
+RUN go mod download
 
 COPY . .
 
