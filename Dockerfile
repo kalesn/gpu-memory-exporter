@@ -31,7 +31,9 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o gpu-memory-exporter main.go
+#RUN go build -o gpu-memory-exporter main.go
+RUN go build  -ldflags="-extldflags=-Wl,-z,lazy" -o gpu-memory-exporter main.go
+
 
 FROM nvcr.io/nvidia/cuda:12.0.0-base-ubuntu20.04
 
